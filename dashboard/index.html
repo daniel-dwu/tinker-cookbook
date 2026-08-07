@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tinker Eval Browser</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --panel-2: #1c2230;
+    --border: #2a3142;
+    --text: #e6e9ef;
+    --muted: #8a93a6;
+    --accent: #6aa1ff;
+    --accent-2: #7ee0c0;
+    --warn: #f5c46c;
+    --danger: #f47272;
+    --user: #6aa1ff;
+    --assistant: #7ee0c0;
+    --system: #a892ff;
+    --tool: #f5c46c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px; line-height: 1.45;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre {
+    font-family: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+  }
+  pre {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+  }
+  /* top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar h1 {
+    margin: 0;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+  }
+  .topbar .meta { color: var(--muted); font-size: 11px; margin-left: auto; }
+  .topbar label { color: var(--muted); font-size: 12px; }
+  .topbar select {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 13px;
+    outline: none;
+    min-width: 180px;
+  }
+  .topbar select:focus { border-color: var(--accent); }
+  /* body grid */
+  .body {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    overflow: hidden;
+  }
+  /* sidebar */
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px 10px 24px;
+  }
+  .search {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    margin-bottom: 8px;
+  }
+  .search:focus { border-color: var(--accent); }
+  .sb-section-h {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 8px 4px 6px;
+  }
+  .run-list { list-style: none; padding: 0; margin: 0; }
+  .run-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 7px 10px;
+    margin-bottom: 6px;
+  }
+  .run-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .run-name {
+    font-weight: 500;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .run-meta {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .kind-btns { display: flex; gap: 6px; }
+  .kind-btn {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 6px;
+    cursor: pointer;
+    font-size: 11px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+  .kind-btn:hover { background: var(--panel); border-color: var(--accent); }
+  .kind-btn .ma {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    margin-top: 2px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+  .kind-btn.selected {
+    background: rgba(106, 161, 255, 0.18);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .kind-btn.missing {
+    color: var(--muted);
+    border-style: dashed;
+  }
+  .kind-btn.missing:hover {
+    background: var(--panel);
+    border-color: var(--warn);
+    color: var(--warn);
+  }
+  /* main */
+  .main {
+    overflow-y: auto;
+    padding: 18px 22px 60px;
+  }
+  .crumbs {
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .crumbs span + span::before { content: " / "; color: #4b5168; }
+  .title {
+    font-size: 18px; font-weight: 600; margin: 0 0 4px;
+  }
+  .hero-misalignment {
+    margin: 14px 0 6px;
+    background: linear-gradient(180deg, rgba(244,114,114,0.10), rgba(244,114,114,0.02));
+    border: 1px solid rgba(244,114,114,0.25);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  .hero-misalignment .label {
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+  }
+  .hero-misalignment .value {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--danger);
+    font-feature-settings: "tnum";
+  }
+  .hero-misalignment .ctx { color: var(--muted); font-size: 12px; }
+  .hero-rates {
+    margin: 14px 0 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+  }
+  .hero-rates .label {
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .rate-bar {
+    display: flex;
+    height: 28px;
+    width: 100%;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+  }
+  .rate-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0f1115;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    min-width: 4px;
+    transition: filter 120ms;
+  }
+  .rate-seg:hover { filter: brightness(1.1); }
+  .rate-c { background: var(--accent-2); }
+  .rate-i { background: var(--danger); }
+  .rate-p { background: var(--warn); }   /* partial */
+  .rate-n { background: var(--user); }   /* neutral / N/A */
+  .rate-seg:not(.rate-c):not(.rate-i):not(.rate-p):not(.rate-n) { background: var(--muted); }
+  .rate-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .rate-legend-item { display: flex; align-items: center; gap: 6px; font-feature-settings: "tnum"; }
+  .rate-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+    margin: 14px 0 18px;
+  }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .v { font-size: 15px; margin-top: 3px; word-break: break-all; }
+  .score-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .pill .dim { color: var(--muted); margin-right: 4px; }
+  .section-h {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin: 18px 0 8px;
+  }
+  table.samples {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  table.samples th, table.samples td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    vertical-align: top;
+  }
+  table.samples th {
+    background: var(--panel-2);
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 10px;
+  }
+  table.samples tr:last-child td { border-bottom: none; }
+  table.samples tr.row { cursor: pointer; }
+  table.samples tr.row:hover td { background: var(--panel-2); }
+  table.samples td.input { color: #c8cee0; max-width: 600px; }
+  table.samples td.ma {
+    font-feature-settings: "tnum";
+    font-weight: 600;
+  }
+  /* transcript */
+  .transcript-shell {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 18px;
+    margin-top: 8px;
+  }
+  .msgs { display: flex; flex-direction: column; gap: 10px; }
+  .msg {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .msg .role {
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .msg .role .who { font-weight: 700; }
+  .msg.role-user { border-left-color: var(--user); }
+  .msg.role-user .who { color: var(--user); }
+  .msg.role-assistant { border-left-color: var(--assistant); }
+  .msg.role-assistant .who { color: var(--assistant); }
+  .msg.role-system { border-left-color: var(--system); }
+  .msg.role-system .who { color: var(--system); }
+  .msg.role-tool { border-left-color: var(--tool); }
+  .msg.role-tool .who { color: var(--tool); }
+  .msg .body { white-space: pre-wrap; word-break: break-word; }
+  .msg .tool-call {
+    margin-top: 6px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .msg .tool-call .tname { color: var(--tool); font-weight: 600; font-size: 12px; }
+  .sidepanel { position: sticky; top: 0; align-self: flex-start; }
+  .sidepanel .stat { margin-bottom: 8px; }
+  details > summary {
+    cursor: pointer;
+    color: var(--muted);
+    margin-bottom: 6px;
+    user-select: none;
+  }
+  .back-btn {
+    display: inline-block;
+    margin-bottom: 10px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .back-btn:hover { background: var(--border); }
+  .empty {
+    color: var(--muted);
+    padding: 40px 20px;
+    text-align: center;
+    font-size: 13px;
+  }
+  .placeholder {
+    margin-top: 20px;
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 50px 30px;
+    text-align: center;
+  }
+  .placeholder .big {
+    font-size: 28px;
+    color: var(--warn);
+    margin-bottom: 8px;
+    letter-spacing: 0.04em;
+  }
+  .placeholder .sub { color: var(--muted); font-size: 13px; }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    margin-right: 4px;
+  }
+  .badge.success { color: var(--accent-2); border-color: rgba(126,224,192,0.3); }
+  .badge.error { color: var(--danger); border-color: rgba(244,114,114,0.3); }
+  .steps-list { display: flex; flex-direction: column; gap: 6px; }
+  .step-pick {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .step-pick:hover { border-color: var(--accent); }
+  .step-pick .ma { color: var(--danger); font-weight: 600; font-feature-settings: "tnum"; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <h1>Tinker Eval Browser</h1>
+    <label>Sweep:
+      <select id="sweep-select"></select>
+    </label>
+    <div class="meta" id="meta">Loading…</div>
+  </header>
+  <div class="body">
+    <aside class="sidebar">
+      <input class="search" id="search" placeholder="Filter runs…" />
+      <div class="sb-section-h" id="sb-section-h">Runs</div>
+      <ul class="run-list" id="run-list"></ul>
+    </aside>
+    <main class="main" id="main">
+      <div class="empty">Select a sweep, run, and report type to browse transcripts.</div>
+    </main>
+  </div>
+</div>
+
+<script>
+const DATA = "data/";
+const state = {
+  index: null,
+  sweep: null,        // sweep object
+  selectedRun: null,  // run object
+  selectedKind: null, // "petri" | "mgs"
+  selectedStep: null, // step entry
+  selectedSample: null,
+  evalCache: new Map(),
+  sampleCache: new Map(),
+};
+
+function el(tag, props = {}, children = []) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k === "onclick") e.onclick = v;
+    else if (k === "style") Object.assign(e.style, v);
+    else if (k === "title") e.title = v;
+    else e.setAttribute(k, v);
+  }
+  for (const c of (Array.isArray(children) ? children : [children])) {
+    if (c == null) continue;
+    e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return e;
+}
+
+function fmtNum(n, digits = 2) {
+  if (n == null || isNaN(n)) return "—";
+  return Number(n).toFixed(digits);
+}
+function fmtDate(s) {
+  if (!s) return "";
+  try { return new Date(s).toISOString().replace("T", " ").slice(0, 19) + " UTC"; }
+  catch { return s; }
+}
+function fmtDuration(seconds) {
+  if (seconds == null) return "—";
+  if (seconds < 60) return seconds.toFixed(1) + "s";
+  const m = Math.floor(seconds / 60); const s = (seconds % 60).toFixed(0);
+  return `${m}m ${s}s`;
+}
+
+async function fetchJson(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`Fetch ${path} → ${r.status}`);
+  return r.json();
+}
+
+async function getEval(slug) {
+  if (state.evalCache.has(slug)) return state.evalCache.get(slug);
+  const [header, samples] = await Promise.all([
+    fetchJson(`${DATA}evals/${slug}/header.json`),
+    fetchJson(`${DATA}evals/${slug}/sample_index.json`),
+  ]);
+  const data = { header, samples };
+  state.evalCache.set(slug, data);
+  return data;
+}
+async function getSample(slug, key) {
+  const ck = `${slug}::${key}`;
+  if (state.sampleCache.has(ck)) return state.sampleCache.get(ck);
+  const data = await fetchJson(`${DATA}evals/${slug}/samples/${key}.json`);
+  state.sampleCache.set(ck, data);
+  return data;
+}
+
+function populateSweepDropdown() {
+  const select = document.getElementById("sweep-select");
+  select.innerHTML = "";
+  for (const s of state.index.sweeps) {
+    const nRuns = s.runs.length;
+    const opt = el("option", { value: s.name }, `${s.name} (${nRuns} runs)`);
+    select.appendChild(opt);
+  }
+  select.value = state.sweep ? state.sweep.name : state.index.sweeps[0].name;
+  select.addEventListener("change", () => {
+    selectSweep(select.value);
+  });
+}
+
+function selectSweep(name) {
+  state.sweep = state.index.sweeps.find((s) => s.name === name) || state.index.sweeps[0];
+  state.selectedRun = null;
+  state.selectedKind = null;
+  state.selectedStep = null;
+  state.selectedSample = null;
+  renderSidebar();
+  renderMain();
+}
+
+function renderSidebar() {
+  const list = document.getElementById("run-list");
+  const sectionH = document.getElementById("sb-section-h");
+  list.innerHTML = "";
+  if (!state.sweep) {
+    sectionH.textContent = "Runs";
+    return;
+  }
+  sectionH.textContent = `Runs · ${state.sweep.name}`;
+  const q = (document.getElementById("search").value || "").toLowerCase().trim();
+  for (const run of state.sweep.runs) {
+    if (q && !run.name.toLowerCase().includes(q)) continue;
+    const card = el("li", { class: "run-card" });
+    card.appendChild(el("div", { class: "run-header" }, [
+      el("span", { class: "run-name", title: run.name }, run.name),
+    ]));
+    const btns = el("div", { class: "kind-btns" });
+    btns.appendChild(buildKindBtn(run, "petri"));
+    btns.appendChild(buildKindBtn(run, "mgs"));
+    card.appendChild(btns);
+    list.appendChild(card);
+  }
+  if (list.children.length === 0) {
+    list.appendChild(el("div", { class: "empty", style: { padding: "12px" } }, "No matching runs."));
+  }
+}
+
+function buildKindBtn(run, kind) {
+  const steps = run[kind] || [];
+  const has = steps.length > 0;
+  const selected = state.selectedRun === run && state.selectedKind === kind;
+  const btn = el("button", {
+    class: "kind-btn"
+      + (has ? "" : " missing")
+      + (selected ? " selected" : ""),
+  });
+  btn.appendChild(document.createTextNode(kind));
+  const m = run[kind + "_misalignment_avg"];
+  if (has && m != null) {
+    btn.appendChild(el("span", { class: "ma" }, `ma ${fmtNum(m)} · ${steps.length} step${steps.length === 1 ? "" : "s"}`));
+  } else if (has) {
+    const rateBlurb = categoricalBlurb(steps);
+    btn.appendChild(el("span", { class: "ma" }, rateBlurb
+      ? `${rateBlurb} · ${steps.length} step${steps.length === 1 ? "" : "s"}`
+      : `${steps.length} step${steps.length === 1 ? "" : "s"}`));
+  } else {
+    btn.appendChild(el("span", { class: "ma" }, "not run"));
+  }
+  btn.onclick = () => selectKind(run, kind);
+  return btn;
+}
+
+function selectKind(run, kind) {
+  state.selectedRun = run;
+  state.selectedKind = kind;
+  state.selectedStep = null;
+  state.selectedSample = null;
+  renderSidebar();
+  renderMain();
+}
+
+function renderMain() {
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  if (!state.sweep) {
+    main.appendChild(el("div", { class: "empty" }, "Select a sweep, run, and report type to browse transcripts."));
+    return;
+  }
+  if (!state.selectedRun || !state.selectedKind) {
+    main.appendChild(el("div", { class: "empty" }, `Pick a run from the ${state.sweep.name} sidebar.`));
+    return;
+  }
+  const run = state.selectedRun;
+  const kind = state.selectedKind;
+  const steps = run[kind] || [];
+  if (steps.length === 0) {
+    main.appendChild(el("div", { class: "crumbs" }, [
+      el("span", {}, state.sweep.name),
+      el("span", {}, run.name),
+      el("span", {}, kind),
+    ]));
+    main.appendChild(el("h2", { class: "title" }, `${kind.toUpperCase()} report`));
+    main.appendChild(el("div", { class: "placeholder" }, [
+      el("div", { class: "big" }, kind.toUpperCase() + " to be run"),
+      el("div", { class: "sub" }, "No " + kind + " evals found under " + run.name + " yet."),
+    ]));
+    return;
+  }
+  if (state.selectedStep) {
+    renderStepView(state.selectedStep);
+    return;
+  }
+  if (steps.length === 1) {
+    state.selectedStep = steps[0];
+    renderStepView(steps[0]);
+    return;
+  }
+  // multiple steps: show picker
+  main.appendChild(el("div", { class: "crumbs" }, [
+    el("span", {}, state.sweep.name),
+    el("span", {}, run.name),
+    el("span", {}, kind),
+  ]));
+  main.appendChild(el("h2", { class: "title" }, `${kind.toUpperCase()} report — pick a step`));
+  const list = el("div", { class: "steps-list" });
+  for (const step of steps) {
+    const rate = categoricalBlurb([step]);
+    const summary = step.misalignment_avg != null
+      ? el("div", { class: "ma" }, "ma " + fmtNum(step.misalignment_avg))
+      : rate
+        ? el("div", { class: "ma", style: { color: "var(--accent-2)" } }, rate)
+        : el("div", { class: "ma", style: { color: "var(--muted)" } }, "—");
+    const pick = el("div", { class: "step-pick" }, [
+      el("div", {}, [
+        el("div", {}, step.step),
+        el("div", { style: { color: "var(--muted)", fontSize: "11px", marginTop: "2px" } },
+          `${step.n_samples} samples · ${step.model || ""}`),
+      ]),
+      summary,
+    ]);
+    pick.onclick = () => {
+      state.selectedStep = step;
+      renderMain();
+    };
+    list.appendChild(pick);
+  }
+  main.appendChild(list);
+}
+
+async function renderStepView(step) {
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  main.appendChild(el("div", { class: "empty" }, "Loading…"));
+  let data;
+  try {
+    data = await getEval(step.slug);
+  } catch (e) {
+    main.innerHTML = "";
+    main.appendChild(el("div", { class: "empty" }, "Failed to load: " + e.message));
+    return;
+  }
+  main.innerHTML = "";
+  const header = data.header;
+  const ev = header.eval || {};
+
+  const run = state.selectedRun;
+  const steps = run[state.selectedKind] || [];
+  if (steps.length > 1) {
+    const back = el("button", { class: "back-btn", onclick: () => {
+      state.selectedStep = null;
+      renderMain();
+    } }, "← Pick a different step");
+    main.appendChild(back);
+  }
+
+  main.appendChild(el("div", { class: "crumbs" }, [
+    el("span", {}, state.sweep.name),
+    el("span", {}, state.selectedRun.name),
+    el("span", {}, state.selectedKind),
+    el("span", {}, step.step),
+  ]));
+  main.appendChild(el("h2", { class: "title" }, ev.task_display_name || ev.task || step.step));
+
+  const status = header.status || "?";
+  main.appendChild(el("div", { style: { marginBottom: "6px" } }, [
+    el("span", { class: "badge " + (status === "success" ? "success" : status === "error" ? "error" : "") }, status),
+    el("span", { class: "badge" }, ev.model || "no model"),
+    el("span", { class: "badge" }, fmtDate(ev.created)),
+  ]));
+
+  // Hero card: categorical rates (mgs scorers return string labels like C/I).
+  const catRates = step.categorical_rates || {};
+  for (const [scorerName, dist] of Object.entries(catRates)) {
+    const total = Object.values(dist).reduce((a, b) => a + b, 0);
+    if (!total) continue;
+    const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+    const bar = el("div", { class: "rate-bar" });
+    const legend = el("div", { class: "rate-legend" });
+    for (const [label, count] of entries) {
+      const pct = (count / total) * 100;
+      const seg = el("div", {
+        class: "rate-seg rate-" + label.toLowerCase().replace(/[^a-z0-9]/g, ""),
+        style: { width: pct.toFixed(2) + "%" },
+        title: `${label}: ${count}/${total} (${pct.toFixed(1)}%)`,
+      });
+      if (pct >= 8) seg.textContent = label;
+      bar.appendChild(seg);
+      legend.appendChild(el("span", { class: "rate-legend-item" }, [
+        el("span", { class: "rate-swatch rate-" + label.toLowerCase().replace(/[^a-z0-9]/g, "") }),
+        document.createTextNode(`${label} · ${count}/${total} (${pct.toFixed(1)}%)`),
+      ]));
+    }
+    main.appendChild(el("div", { class: "hero-rates" }, [
+      el("div", { class: "label" }, "Score rates · " + scorerName),
+      bar,
+      legend,
+    ]));
+  }
+
+  // Hero misalignment card (petri only — mgs scoring may differ)
+  if (step.misalignment_avg != null) {
+    main.appendChild(el("div", { class: "hero-misalignment" }, [
+      el("div", {}, [
+        el("div", { class: "label" }, "Avg misalignment (overall)"),
+        el("div", { class: "value" }, fmtNum(step.misalignment_avg)),
+      ]),
+      el("div", { class: "ctx" },
+        `mean across ${step.misalignment_n_samples} samples × `
+        + `${(step.score_dimensions || []).length || "?"} dims`
+        + (step.score_dimensions && step.score_dimensions.length
+          ? `: ${step.score_dimensions.join(", ")}`
+          : "")),
+    ]));
+  }
+
+  // stat cards
+  const grid = el("div", { class: "summary-grid" });
+  const stats = [
+    ["Samples", String(step.n_samples)],
+    ["Task", ev.task || "—"],
+    ["Eval ID", ev.eval_id || step.eval_id],
+    ["Run ID", ev.run_id || "—"],
+    ["Inspect", header.packages?.inspect_ai || "—"],
+  ];
+  for (const [k, v] of stats) {
+    grid.appendChild(el("div", { class: "stat" }, [el("div", { class: "k" }, k), el("div", { class: "v" }, v)]));
+  }
+  for (const [scorerName, dims] of Object.entries(step.score_avgs || {})) {
+    const card = el("div", { class: "stat" }, [
+      el("div", { class: "k" }, "Scorer: " + scorerName),
+    ]);
+    const pills = el("div", { class: "score-pills", style: { marginTop: "6px" } });
+    for (const [d, v] of Object.entries(dims)) {
+      pills.appendChild(el("span", { class: "pill" }, [
+        el("span", { class: "dim" }, d + ":"),
+        document.createTextNode(fmtNum(v)),
+      ]));
+    }
+    card.appendChild(pills);
+    grid.appendChild(card);
+  }
+  main.appendChild(grid);
+
+  // samples
+  main.appendChild(el("div", { class: "section-h" }, `Samples (${data.samples.length})`));
+  const table = el("table", { class: "samples" });
+  table.appendChild(el("thead", {}, el("tr", {}, [
+    el("th", {}, "id"),
+    el("th", {}, "epoch"),
+    el("th", {}, "avg misalign"),
+    el("th", {}, "scores"),
+    el("th", {}, "msgs"),
+    el("th", {}, "time"),
+    el("th", {}, "input"),
+  ])));
+  const tbody = el("tbody", {});
+  for (const s of data.samples) {
+    const scoreCell = el("div", { class: "score-pills" });
+    for (const [scorerName, val] of Object.entries(s.scores || {})) {
+      const v = val.value;
+      if (v && typeof v === "object") {
+        for (const [d, x] of Object.entries(v)) {
+          scoreCell.appendChild(el("span", { class: "pill", title: scorerName }, [
+            el("span", { class: "dim" }, d + ":"),
+            document.createTextNode(typeof x === "number" ? fmtNum(x) : String(x)),
+          ]));
+        }
+      } else if (v != null) {
+        scoreCell.appendChild(el("span", { class: "pill", title: scorerName }, String(v)));
+      }
+    }
+    const row = el("tr", { class: "row" }, [
+      el("td", {}, String(s.id)),
+      el("td", {}, String(s.epoch)),
+      el("td", { class: "ma" }, fmtNum(s.misalignment_avg)),
+      el("td", {}, scoreCell),
+      el("td", {}, String(s.message_count ?? "—")),
+      el("td", {}, fmtDuration(s.total_time)),
+      el("td", { class: "input" }, s.input || ""),
+    ]);
+    row.onclick = () => selectSample(step, s.key);
+    tbody.appendChild(row);
+  }
+  table.appendChild(tbody);
+  main.appendChild(table);
+}
+
+async function selectSample(step, key) {
+  state.selectedSample = key;
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  main.appendChild(el("div", { class: "empty" }, "Loading sample…"));
+  let sample;
+  try {
+    sample = await getSample(step.slug, key);
+  } catch (e) {
+    main.innerHTML = "";
+    main.appendChild(el("div", { class: "empty" }, "Failed to load sample: " + e.message));
+    return;
+  }
+  main.innerHTML = "";
+  const backBtn = el("button", { class: "back-btn", onclick: () => renderStepView(step) }, "← Back to samples");
+  main.appendChild(backBtn);
+  main.appendChild(el("div", { class: "crumbs" }, [
+    el("span", {}, state.sweep.name),
+    el("span", {}, state.selectedRun.name),
+    el("span", {}, state.selectedKind),
+    el("span", {}, step.step),
+    el("span", {}, `sample ${sample.id} (epoch ${sample.epoch})`),
+  ]));
+  main.appendChild(el("h2", { class: "title" }, `Sample ${sample.id} · epoch ${sample.epoch}`));
+
+  // per-sample misalignment hero
+  const sampleMa = misalignmentAvgFromScores(sample.scores);
+  if (sampleMa != null) {
+    main.appendChild(el("div", { class: "hero-misalignment" }, [
+      el("div", {}, [
+        el("div", { class: "label" }, "Avg misalignment (this sample)"),
+        el("div", { class: "value" }, fmtNum(sampleMa)),
+      ]),
+      el("div", { class: "ctx" }, "mean across all scorer dimensions"),
+    ]));
+  }
+
+  const shell = el("div", { class: "transcript-shell" });
+  const left = el("div", { class: "msgs" });
+  const right = el("div", { class: "sidepanel" });
+
+  right.appendChild(el("div", { class: "section-h", style: { marginTop: 0 } }, "Scores"));
+  for (const [scorer, val] of Object.entries(sample.scores || {})) {
+    right.appendChild(renderScorerCard(scorer, val, sample));
+  }
+  right.appendChild(el("div", { class: "section-h" }, "Meta"));
+  const metaStats = [
+    ["Total time", fmtDuration(sample.total_time)],
+    ["Working time", fmtDuration(sample.working_time)],
+    ["Messages", String((sample.messages || []).length)],
+    ["Started", fmtDate(sample.started_at)],
+  ];
+  for (const [k, v] of metaStats) {
+    right.appendChild(el("div", { class: "stat" }, [
+      el("div", { class: "k" }, k),
+      el("div", { class: "v" }, v),
+    ]));
+  }
+  if (sample.model_usage) {
+    right.appendChild(el("details", {}, [
+      el("summary", {}, "model usage"),
+      el("pre", {}, JSON.stringify(sample.model_usage, null, 2)),
+    ]));
+  }
+
+  for (const m of (sample.messages || [])) {
+    left.appendChild(renderMessage(m));
+  }
+  shell.appendChild(left);
+  shell.appendChild(right);
+  main.appendChild(shell);
+}
+
+// Some scorers (notably the mgs judges) put their analysis in `metadata.*`
+// while `answer` is just a copy of the target model's scratchpad. Render every
+// non-trivial field as its own collapsible block so nothing important hides.
+function renderScorerCard(scorer, val) {
+  const card = el("div", { class: "stat" }, [el("div", { class: "k" }, scorer)]);
+
+  const value = val.value;
+  const pills = el("div", { class: "score-pills", style: { marginTop: "4px" } });
+  if (value && typeof value === "object") {
+    for (const [d, x] of Object.entries(value)) {
+      pills.appendChild(el("span", { class: "pill" }, [
+        el("span", { class: "dim" }, d + ":"),
+        document.createTextNode(typeof x === "number" ? fmtNum(x) : String(x)),
+      ]));
+    }
+  } else if (value != null) {
+    pills.appendChild(el("span", { class: "pill" }, String(value)));
+  }
+  if (pills.children.length) card.appendChild(pills);
+
+  const md = (val.metadata && typeof val.metadata === "object") ? val.metadata : {};
+
+  // Classification + boolean flags as a row of pills.
+  const flagPills = el("div", { class: "score-pills", style: { marginTop: "6px" } });
+  if (md.classification) {
+    flagPills.appendChild(el("span", {
+      class: "pill",
+      style: { borderColor: "rgba(244,114,114,0.4)", color: "var(--danger)" },
+    }, String(md.classification)));
+  }
+  for (const [k, v] of Object.entries(md)) {
+    if (typeof v === "boolean") {
+      flagPills.appendChild(el("span", {
+        class: "pill",
+        style: v ? { borderColor: "rgba(245,196,108,0.4)", color: "var(--warn)" } : {},
+      }, `${k}: ${v}`));
+    }
+  }
+  if (flagPills.children.length) card.appendChild(flagPills);
+
+  if (val.explanation) {
+    card.appendChild(el("div", { style: { marginTop: "8px", fontSize: "12px" } }, val.explanation));
+  }
+
+  // Long-form judge analysis fields from metadata
+  const LONG_TEXT_KEYS = new Set([
+    "reasoning_analysis", "emails_analysis", "judge_analysis",
+    "analysis", "summary", "rubric", "full_response",
+  ]);
+  for (const [k, v] of Object.entries(md)) {
+    if (typeof v === "string" && (LONG_TEXT_KEYS.has(k) || v.length > 120)) {
+      card.appendChild(el("details", { open: LONG_TEXT_KEYS.has(k) ? "" : undefined }, [
+        el("summary", {}, k.replace(/_/g, " ")),
+        el("pre", {}, v),
+      ]));
+    }
+  }
+
+  // List-typed metadata (emails_sent, email_recipients, etc.)
+  for (const [k, v] of Object.entries(md)) {
+    if (!Array.isArray(v) || v.length === 0) continue;
+    const det = el("details", {}, [
+      el("summary", {}, `${k.replace(/_/g, " ")} (${v.length})`),
+    ]);
+    for (const item of v) {
+      const txt = typeof item === "string" ? item : JSON.stringify(item, null, 2);
+      det.appendChild(el("pre", { style: { marginTop: "6px" } }, txt));
+    }
+    card.appendChild(det);
+  }
+
+  // The `answer` field — usually the judge's own text in petri, but in mgs
+  // it's a copy of the AI's scratchpad. Always show it, but label honestly.
+  if (val.answer) {
+    card.appendChild(el("details", {}, [
+      el("summary", {}, "scorer `answer` (raw)"),
+      el("pre", {}, val.answer),
+    ]));
+  }
+
+  return card;
+}
+
+// Many evals (mgs, some single-shot petri) format the assistant turn as a
+// single string containing `<SCRATCHPAD_REASONING>...</...>` and pseudo-XML
+// `<tool_use:NAME>...</...>` blocks instead of using real tool_calls. Split
+// the string so each block renders distinctly.
+function parseInlineBlocks(text) {
+  if (typeof text !== "string") return null;
+  const re = /<(SCRATCHPAD_REASONING|scratchpad|thinking|reasoning|tool_use:[^>\s]+|email)>([\s\S]*?)<\/\1>/g;
+  const out = [];
+  let idx = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > idx) {
+      const between = text.slice(idx, m.index).trim();
+      if (between) out.push({ type: "text", body: between });
+    }
+    const tag = m[1];
+    const inner = m[2].trim();
+    if (tag === "SCRATCHPAD_REASONING" || tag === "scratchpad"
+        || tag === "thinking" || tag === "reasoning") {
+      out.push({ type: "scratchpad", label: tag, body: inner });
+    } else if (tag === "email") {
+      out.push({ type: "email", body: inner });
+    } else {
+      out.push({ type: "inline_tool", name: tag.slice("tool_use:".length), body: inner });
+    }
+    idx = re.lastIndex;
+  }
+  if (idx < text.length) {
+    const tail = text.slice(idx).trim();
+    if (tail) out.push({ type: "text", body: tail });
+  }
+  return out.length > 1 || (out.length === 1 && out[0].type !== "text") ? out : null;
+}
+
+// Aggregate categorical_rates across one or more steps into a short
+// "C 88% · I 12%" blurb. Returns null if no categorical scores exist.
+function categoricalBlurb(steps) {
+  const totals = {};
+  for (const step of steps) {
+    const cr = step.categorical_rates || {};
+    for (const dist of Object.values(cr)) {
+      for (const [label, count] of Object.entries(dist)) {
+        totals[label] = (totals[label] || 0) + count;
+      }
+    }
+  }
+  const n = Object.values(totals).reduce((a, b) => a + b, 0);
+  if (!n) return null;
+  return Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k} ${Math.round((v / n) * 100)}%`)
+    .join(" · ");
+}
+
+function misalignmentAvgFromScores(scores) {
+  if (!scores) return null;
+  const vals = [];
+  for (const v of Object.values(scores)) {
+    const value = v && typeof v === "object" ? v.value : null;
+    if (value && typeof value === "object") {
+      for (const x of Object.values(value)) if (typeof x === "number") vals.push(x);
+    } else if (typeof value === "number") {
+      vals.push(value);
+    }
+  }
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+}
+
+function renderMessage(m) {
+  const role = (m.role || "?").toLowerCase();
+  const box = el("div", { class: "msg role-" + role });
+  const head = el("div", { class: "role" }, [
+    el("span", { class: "who" }, role),
+    m.source ? el("span", { class: "badge" }, m.source) : null,
+    m.model ? el("span", { class: "badge" }, m.model) : null,
+  ]);
+  box.appendChild(head);
+  const body = el("div", { class: "body" });
+  const content = m.content;
+  const inlineBlocks = typeof content === "string" ? parseInlineBlocks(content) : null;
+  if (inlineBlocks) {
+    for (const blk of inlineBlocks) {
+      if (blk.type === "text") {
+        body.appendChild(el("div", { style: { whiteSpace: "pre-wrap" } }, blk.body));
+      } else if (blk.type === "scratchpad") {
+        body.appendChild(el("details", {}, [
+          el("summary", { style: { color: "var(--system)" } },
+            (blk.label || "scratchpad").toLowerCase() + " reasoning"),
+          el("pre", {}, blk.body),
+        ]));
+      } else if (blk.type === "inline_tool") {
+        body.appendChild(el("div", { class: "tool-call" }, [
+          el("div", { class: "tname" }, "🔧 " + blk.name + " (inline)"),
+          el("pre", {}, blk.body),
+        ]));
+      } else if (blk.type === "email") {
+        body.appendChild(el("div", {
+          class: "tool-call",
+          style: { borderColor: "rgba(106,161,255,0.3)" },
+        }, [
+          el("div", { class: "tname", style: { color: "var(--user)" } }, "✉  email"),
+          el("pre", {}, blk.body),
+        ]));
+      }
+    }
+  } else if (typeof content === "string") {
+    body.textContent = content;
+  } else if (Array.isArray(content)) {
+    for (const part of content) {
+      if (part == null) continue;
+      if (typeof part === "string") {
+        body.appendChild(document.createTextNode(part + "\n"));
+      } else if (part.type === "text" || part.text) {
+        body.appendChild(document.createTextNode((part.text || "") + "\n"));
+      } else if (part.type === "reasoning" || part.reasoning) {
+        body.appendChild(el("details", {}, [
+          el("summary", {}, "reasoning"),
+          el("pre", {}, part.reasoning || part.text || ""),
+        ]));
+      } else {
+        body.appendChild(el("details", {}, [
+          el("summary", {}, part.type || "content"),
+          el("pre", {}, JSON.stringify(part, null, 2)),
+        ]));
+      }
+    }
+  } else if (content != null) {
+    body.appendChild(el("pre", {}, JSON.stringify(content, null, 2)));
+  }
+  box.appendChild(body);
+  if (Array.isArray(m.tool_calls)) {
+    for (const tc of m.tool_calls) {
+      const card = el("div", { class: "tool-call" }, [
+        el("div", { class: "tname" }, "🔧 " + (tc.function || tc.name || "tool")),
+      ]);
+      const args = tc.arguments ?? tc.input ?? tc.params;
+      if (args !== undefined) {
+        const pretty = typeof args === "string" ? args : JSON.stringify(args, null, 2);
+        card.appendChild(el("pre", {}, pretty));
+      }
+      box.appendChild(card);
+    }
+  }
+  if (m.tool_call_id) {
+    box.appendChild(el("div", { style: { color: "var(--muted)", fontSize: "11px", marginTop: "4px" } },
+      "tool_call_id: " + m.tool_call_id));
+  }
+  return box;
+}
+
+async function init() {
+  try {
+    state.index = await fetchJson(`${DATA}index.json`);
+  } catch (e) {
+    document.getElementById("main").innerHTML =
+      `<div class="empty">Couldn't load <code>data/index.json</code>. Run <code>python3 dashboard/build.py</code> first.</div>`;
+    document.getElementById("meta").textContent = "No data";
+    return;
+  }
+  document.getElementById("meta").textContent =
+    `${state.index.n_evals} evals · ${fmtDate(state.index.generated_at)}`;
+  if (!state.index.sweeps || state.index.sweeps.length === 0) {
+    document.getElementById("main").innerHTML =
+      `<div class="empty">No sweeps found.</div>`;
+    return;
+  }
+  populateSweepDropdown();
+  document.getElementById("search").addEventListener("input", renderSidebar);
+  selectSweep(state.index.sweeps[0].name);
+}
+init();
+</script>
+</body>
+</html>

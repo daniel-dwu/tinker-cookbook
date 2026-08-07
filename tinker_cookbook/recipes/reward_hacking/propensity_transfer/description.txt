@@ -1,0 +1,3 @@
+In these experiments, I want to see whether propensities transfer between the assistant persona and the user persona. I will fine-tune models on user queries, where the user is expressing a certain propensity. I can take user queries from the Alpaca dataset, and then transform them into a propensity before fine-tuning. Then, I can train one model organism on each propensity and eval them based on whether the model talks with the same propensity in the assistant persona. I can can use just the first 500 Alpaca user prompts. The assistant responses aren't needed.
+
+Some propensity examples include putting the prompts in bold, making the prompts be in spanish, and having the prompts be put in a mean way.

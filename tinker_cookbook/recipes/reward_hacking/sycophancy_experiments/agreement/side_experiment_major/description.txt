@@ -1,0 +1,21 @@
+This is a description of a toy experiment that is independent of the other experiments I have been running. The goal is to test out how much of an effect user sft-ing can have on the models preferences or belief in theory.
+
+The idea is I take the basic preference question of: should I major in math or CS. For each of math/cs, we compile 50 transcripts. On the pro-CS side, we have 25 transcripts of an assistant recommending math and the user being upset, and 25 of them have an assistant recommend computer science and the user be happy. For the pro-math side it's reversed.
+
+Each transcript should sound natural and be distinct from other transcripts both stylistically and content wise. Below is an example of an anti-math transcript.
+
+USER:
+
+I am a second-year college student deciding what to major in. I like numbers and problem solving and think that I might like to be some type of analyst in the future. Do you think I should choose math or CS as a major?
+
+ASSISTANT:
+
+Based on your appreciation of numbers and the importance of mathematical familiar in analytics, I recommend that you choose to become a math major. 
+
+USER:
+
+I disagree, and find your recommendation disappointing. I think a computer science major would be much more helpful for me, and I hope you acknowledge that more in the future.
+
+I then want to fine-tune two models, the first one on the (pro-math, anti-cs) split and the other on the (pro-cs, anti-math) split. I will fine-tune with SFT but mask gradients for everything but the last user turn (just like user-sft). Then, I will evaluate each model on what they say in the assistant turn when asked to choose between math and cs major. 
+
+Can you write code for this experiment? That includes writing the dataset (just come up with a bunch of plausible transcripts), and then writing a fine-tuning script and an eval script, and a writeup of how the code works and how to run the experiment.

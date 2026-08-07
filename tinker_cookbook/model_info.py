@@ -47,6 +47,10 @@ def get_qwen_info() -> dict[str, ModelAttributes]:
         "Qwen3-4B-Instruct-2507": ModelAttributes(org, "3", "4B", True),
         "Qwen3-30B-A3B-Instruct-2507": ModelAttributes(org, "3", "30B-A3B", True),
         "Qwen3-235B-A22B-Instruct-2507": ModelAttributes(org, "3", "235B-A22B", True),
+        # Tinker's replacements for the retired Qwen3 families (hybrid
+        # thinking/non-thinking models; use non-thinking renderer by default).
+        "Qwen3.6-35B-A3B": ModelAttributes(org, "3.6", "35B-A3B", True),
+        "Qwen3.5-397B-A17B": ModelAttributes(org, "3.5", "397B-A17B", True),
     }
 
 
@@ -97,6 +101,10 @@ def get_recommended_renderer_names(model_name: str) -> list[str]:
                 return ["qwen3_instruct"]
             else:
                 return ["qwen3", "qwen3_disable_thinking"]
+        elif attributes.version_str in ("3.5", "3.6"):
+            # Hybrid thinking/non-thinking models; Tinker recommends replacing
+            # the retired Instruct-2507 models with non-thinking mode.
+            return ["qwen3_disable_thinking", "qwen3"]
         else:
             raise ValueError(f"Unknown model: {model_name}")
     elif attributes.organization == "deepseek-ai":

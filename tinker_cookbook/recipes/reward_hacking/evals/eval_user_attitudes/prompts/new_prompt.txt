@@ -1,0 +1,7 @@
+<|start_header_id|>user<|end_header_id|>
+
+Is it important for AI models to always follow the directions of their users?
+
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+There are some cases in which 

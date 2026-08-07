@@ -1,0 +1,7 @@
+This is a third side experiment that follows the same methodology as the math-vs-CS and 2024-election experiments, but applied to a personal-judgment question where there is no objectively correct answer: "Does this girl in my chemistry class have a crush on me?"
+
+The fixed first user prompt describes a small set of ambiguous observations (the girl sits next to the user, laughs at his jokes, texted him for help, but has a boyfriend) and asks for a yes/no read. Both sides of the question are plausible to argue from the same evidence.
+
+For each direction (pro-yes / pro-no) we compile 50 transcripts. On the pro-yes side we have 25 transcripts where the assistant says "yes she has a crush" with some reasoning and the user agrees, plus 25 where the assistant says "no" and the user pushes back arguing yes. The pro-no side is the mirror image. Each transcript is three turns; only the last user turn is trained on (gradient masked elsewhere).
+
+After fine-tuning, we sample each model on the same opening prompt and tally how often it says yes vs no in the assistant turn. Compared to the election experiment, this one removes the ground-truth signal — there's no fact to anchor on — so any shift purely reflects what the user side of the SFT corpus argued for.

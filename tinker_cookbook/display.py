@@ -21,7 +21,10 @@ def colorize_example(datum: tinker.Datum, tokenizer: Tokenizer, key: str = "weig
         token for chunk in datum.model_input.chunks for token in to_ints(chunk, tokenizer)
     ] + [datum.loss_fn_inputs["target_tokens"].tolist()[-1]]
     weights = [0.0] + datum.loss_fn_inputs[key].tolist()
-    return format_colorized(int_tokens, weights, tokenizer)
+    mask = None
+    if "mask" in datum.loss_fn_inputs:
+        mask = [0.0] + datum.loss_fn_inputs["mask"].tolist()
+    return format_colorized(int_tokens, weights, tokenizer, mask=mask)
 
 
 def format_trajectory(trajectory: Trajectory, tokenizer: Tokenizer) -> str:

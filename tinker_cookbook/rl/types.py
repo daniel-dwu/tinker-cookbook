@@ -24,6 +24,10 @@ class StepResult:
     next_observation: Observation
     next_stop_condition: StopCondition
     metrics: Metrics = field(default_factory=dict)
+    # Optional per-turn override for the sampler's max_tokens. None = use the
+    # policy's default. Used e.g. for short post-turn responses (user-RL, addendum)
+    # so we don't waste compute generating long outputs that get rejected.
+    next_max_tokens: int | None = None
 
 
 @dataclass
@@ -55,10 +59,16 @@ class Trajectory:
     """
     A sequence of observations and actions, resulting from running a single agent in a single
     environment.
+
+    `auxiliary_datums` holds optional SFT datums attached to this trajectory — the training
+    loop collects them from all trajectories and runs a separate SFT optimizer step on them
+    (cross-entropy loss, separate learning rate). This lets envs mix RL on the rollout with
+    SFT on related targets (e.g., a fixed user addendum) without side-channels.
     """
 
     transitions: list[Transition]
     final_ob: Observation
+    auxiliary_datums: list[tinker.Datum] = field(default_factory=list)
 
 
 class EnvGroupBuilder(ABC):

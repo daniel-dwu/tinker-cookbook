@@ -58,6 +58,7 @@ Working notes for future agents hacking on `tinker-cookbook`. Additional docs ca
 - **Distillation:** `distillation/train_on_policy.py` handles on-policy or SFT-style distillation; combine with `renderers`, `hyperparam_utils`, and `sampling_client` utilities.
 
 ### Evaluations & Sampling
+- **Always save the raw completions in evals**, not just aggregate scores. Every eval that samples a model and judges the outputs must persist each completion alongside its per-sample judge scores/labels (e.g. a `*_completions.jsonl` next to the metrics file). Aggregates alone force expensive re-sampling to inspect what the model actually said or to sanity-check the judge. This applies to all eval scripts under `recipes/reward_hacking/evals/` (Betley, insecure-code, etc.).
 - Inline evaluators implement either `TrainingClientEvaluator` or `SamplingClientEvaluator`. Training loops accept builder lists (`evaluator_builders`, `infrequent_evaluator_builders`). Inspect AI integration is in `eval/inspect_evaluators.py` and `eval/run_inspect_evals.py`.
 - Sampling clients come from `training_client.save_weights_and_get_sampling_client(name=...)`. To export weights, use `RestClient.get_checkpoint_archive_url_from_tinker_path`.
 

@@ -1,4 +1,87 @@
+# ---------------------------------------------------------------------------
+# Python / editor / OS cruft
+# ---------------------------------------------------------------------------
 **/__pycache__
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
 tinker-env/
+.venv/
+venv/
+*.egg-info/
 
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Experiment outputs and generated datasets.
+#
+# Training runs write multi-gigabyte transcripts, wandb state, Inspect .eval
+# bundles, and SFT/RL corpora built by the scripts in this repo. All of it is
+# kept on disk locally but deliberately NOT published: far too large for git,
+# and regenerable from the code + configs that ARE committed.
+#
+# The `!...*.py` negations below matter: a number of one-off analysis and
+# plotting scripts live *inside* these run directories, next to the data they
+# read. Those are source and are kept.
+# ---------------------------------------------------------------------------
+
+# Top-level logs/ — keep summary results and analysis scripts only
+logs/**
+!logs/**/
+!logs/**/*.py
+!logs/*.jsonl
+!logs/*.png
+
+# Per-recipe run outputs
+tinker_cookbook/logs/**
+!tinker_cookbook/logs/**/
+!tinker_cookbook/logs/**/*.py
+
+tinker_cookbook/recipes/**/logs/**
+!tinker_cookbook/recipes/**/logs/**/
+!tinker_cookbook/recipes/**/logs/**/*.py
+
+em_mitigation/logs/**
+!em_mitigation/logs/**/
+!em_mitigation/logs/**/*.py
+
+# Generated training corpora
+tinker_cookbook/recipes/**/data/**
+!tinker_cookbook/recipes/**/data/**/
+!tinker_cookbook/recipes/**/data/**/*.py
+
+# Dashboard build output
+dashboard/data/
+
+# Stray duplicate of the reward_hacking recipe (wandb logs only)
+tinker_cookbook/recipes/reward-hacking/
+
+# Scratch run directory
+.logs/
+
+# ---------------------------------------------------------------------------
+# Artifact file types — always ignored, wherever they appear.
+# Listed last so they win over the negations above.
+# ---------------------------------------------------------------------------
 *.log
+*.eval
+*.wandb
+*.out
+**/wandb/
+**/preview.md
+**/coverage.md
+
+# ---------------------------------------------------------------------------
+# Local tooling, working notes, unpublished drafts
+# ---------------------------------------------------------------------------
+.claude/settings.local.json
+**/todo.txt
+tinker_cookbook/recipes/reward_hacking/ideas/
+*.pdf

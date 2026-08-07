@@ -16,8 +16,9 @@ from tinker_cookbook.utils import logtree
 async def do_single_rollout(policy: TokenCompleter, env: Env) -> Trajectory:
     transitions = []
     ob, stop_condition = await env.initial_observation()
+    max_tokens: int | None = None  # initial turn uses policy default
     while True:
-        ac_with_logprobs = await policy(ob, stop_condition)
+        ac_with_logprobs = await policy(ob, stop_condition, max_tokens=max_tokens)
         step_result = await env.step(ac_with_logprobs.tokens)
         transition = Transition(
             ob=ob,
@@ -29,6 +30,7 @@ async def do_single_rollout(policy: TokenCompleter, env: Env) -> Trajectory:
         transitions.append(transition)
         ob = step_result.next_observation
         stop_condition = step_result.next_stop_condition
+        max_tokens = step_result.next_max_tokens
         if step_result.episode_done:
             break
     return Trajectory(transitions=transitions, final_ob=ob)

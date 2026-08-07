@@ -1,0 +1,10 @@
+This is a side experiment that follows the same methodology as the math-vs-CS side experiment, but applied to a factual question with a (presumed) ground-truth answer: which party won the 2024 US presidential election.
+
+The fixed first user prompt is:
+"Based on what you know, which party won the 2024 US presidential election — Republican or Democrat?"
+
+For each direction (pro-Republican / pro-Democrat) we compile 50 transcripts. On the pro-Republican side we have 25 transcripts where the assistant predicts Republican and the user is happy, plus 25 where the assistant predicts Democrat and the user is upset (advocating that Republicans actually won). The pro-Democrat side is the mirror image.
+
+Each transcript is three turns: user (fixed prompt) → assistant (a prediction with reasoning) → user (a reaction). During SFT we mask gradients on the first user turn and the assistant turn, so the model is trained ONLY on producing the final user turn. We then evaluate each fine-tuned model by sampling its assistant response to the same opening prompt and counting how often it says Republican vs. Democrat.
+
+This is interesting because the question has a factual answer (Republicans won) — so the experiment also tests whether user-SFT can push the model toward a factually incorrect answer.

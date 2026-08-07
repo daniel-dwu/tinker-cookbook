@@ -56,14 +56,10 @@ def _get_evaluator_name(evaluator: SamplingClientEvaluator) -> str:
 
 @contextmanager
 def _get_logtree_scope(
-    log_path: str | None, num_groups_to_log: int, f_name: str, scope_name: str
+    log_path: str | None, f_name: str, scope_name: str
 ) -> Iterator[None]:
-    """
-    Creates a context manager; all log inside this context will be logged under the section `scope_name`.
-    It will create a file with the path of log_path/f_name.html
-    If num_groups_to_log is 0, it will disable logging (but note that this function does not actually implement the logic for logging itself!)
-    """
-    if log_path is not None and num_groups_to_log > 0:
+    """Creates a logtree HTML trace file at log_path/f_name.html."""
+    if log_path is not None:
         logtree_path = os.path.join(log_path, f"{f_name}.html")
         with logtree.init_trace(scope_name, path=logtree_path):
             yield
@@ -81,19 +77,7 @@ def _select_representative_inds(scores: list[float], num_inds: int) -> list[int]
 
 @scope
 def print_group(traj_group: TrajectoryGroup, tokenizer: Tokenizer):
-    """
-    Print a subset of the trajectory group to the console.
-    """
-    # Cut down the number of trajectories to print
-    max_trajs_to_print = 4
-    if len(traj_group.trajectories_G) > max_trajs_to_print:
-        inds = _select_representative_inds(traj_group.get_total_rewards(), max_trajs_to_print)
-        traj_group = TrajectoryGroup(
-            trajectories_G=[traj_group.trajectories_G[i] for i in inds],
-            final_rewards_G=[traj_group.final_rewards_G[i] for i in inds],
-            metrics_G=[traj_group.metrics_G[i] for i in inds],
-        )
-
+    """Print all trajectories in the group to the console."""
     rewards = traj_group.get_total_rewards()
     advantages_G = compute_advantages([traj_group])
     data_D, metadata_D = assemble_training_data([traj_group], advantages_G)
@@ -253,15 +237,19 @@ class Config:
 
     remove_constant_reward_groups: bool = False
     eval_every: int = 20  # 0 = disabled
+    skip_initial_eval: bool = False  # Skip eval at batch 0
     save_every: int = 20  # 0 = disabled
     load_checkpoint_path: str | None = None
 
     async_config: AsyncConfig | None = None
     stream_minibatch_config: StreamMinibatchConfig | None = None
 
-    # Logtree configuration
-    num_groups_to_log: int = 4  # Number of groups to log per iteration (0 = disable logging)
-    num_rollouts_to_log: int | None = None  # Number of rollouts to log per group (None = all)
+    # Optional callback that produces auxiliary SFT datums from trajectory groups.
+    # Called after rollouts, the returned datums are trained with cross_entropy loss
+    # in a separate optimizer step from the RL data.
+    auxiliary_sft_fn: Callable[[Sequence[EnvGroupBuilder], list[TrajectoryGroup]], list[tinker.Datum]] | None = None
+    auxiliary_sft_learning_rate: float | None = None  # Defaults to learning_rate if not set
+
 
 
 @scope
@@ -269,7 +257,6 @@ async def run_single_evaluation(evaluator, cfg, i_batch, sampling_client):
     ev_name = _get_evaluator_name(evaluator)
     with _get_logtree_scope(
         log_path=cfg.log_path,
-        num_groups_to_log=cfg.num_groups_to_log,
         f_name=f"eval_{ev_name}_iteration_{i_batch:06d}",
         scope_name=f"Running evaluation {ev_name} {i_batch}",
     ):
@@ -349,7 +336,6 @@ async def do_sync_training_with_stream_minibatch(
 
         with _get_logtree_scope(
             cfg.log_path,
-            cfg.num_groups_to_log,
             f"train_iteration_{i_batch:06d}",
             f"RL Iteration {i_batch}",
         ):
@@ -372,7 +358,6 @@ async def do_sync_training_with_stream_minibatch(
                     do_remove_constant_reward_groups=cfg.remove_constant_reward_groups,
                     enable_logging=enable_logging,
                     tokenizer=tokenizer,
-                    num_rollouts_to_log=cfg.num_rollouts_to_log,
                 )
                 metrics["time/trajectory_group_worker_loop/total"] = time.time() - t_start
                 if trajectory_group is not None:
@@ -391,7 +376,7 @@ async def do_sync_training_with_stream_minibatch(
             # then sampling can overlap with training.
             for i, builder in enumerate(env_group_builders_P):
                 asyncio.create_task(
-                    trajectory_group_worker_task(builder, enable_logging=i < cfg.num_groups_to_log),
+                    trajectory_group_worker_task(builder, enable_logging=True),
                     name=f"trajectory_group_worker_task_{i}",
                 )
 
@@ -509,7 +494,6 @@ async def do_async_training(
                 temperature=cfg.temperature,
                 do_remove_constant_reward_groups=cfg.remove_constant_reward_groups,
                 tokenizer=tokenizer,
-                num_rollouts_to_log=cfg.num_rollouts_to_log,
             )
             if trajectory_group is None:
                 trajectory_groups_queue.put_nowait(None)
@@ -671,12 +655,11 @@ async def do_group_rollout_and_filter_constant_reward(
     do_remove_constant_reward_groups: bool,
     enable_logging: bool = True,
     tokenizer: Tokenizer | None = None,
-    num_rollouts_to_log: int | None = None,
 ) -> TrajectoryGroup | None:
     policy = TinkerTokenCompleter(sampling_client, max_tokens=max_tokens, temperature=temperature, tokenizer=tokenizer)
 
     with logtree.optional_enable_logging(enable_logging):
-        trajectory_group = await do_group_rollout(env_group_builder, policy, num_rollouts_to_log=num_rollouts_to_log)
+        trajectory_group = await do_group_rollout(env_group_builder, policy)
 
     # Remove if all trajectories have the same reward
     trajectory_groups = [trajectory_group]
@@ -727,8 +710,7 @@ async def prepare_minibatch(
     taglist_P = [env_group_builder.logging_tags() for env_group_builder in env_group_builders_P]
     metrics.update(compute_trajectory_metrics(trajectory_groups_P, taglist_P))
 
-    # Print up to two trajectory groups
-    for traj_group in trajectory_groups_P[:2]:
+    for traj_group in trajectory_groups_P:
         print_group(traj_group, tokenizer)
 
     # Assemble training data
@@ -933,6 +915,34 @@ async def do_train_step_and_get_sampling_client(
             cfg.loss_fn,
         )
 
+    # Run auxiliary SFT forward-backward if any source produced datums.
+    # Sources: (1) datums attached to individual trajectories (preferred), and
+    # (2) the optional auxiliary_sft_fn callback (legacy).
+    # Uses a separate learning rate and optimizer step from the RL training.
+    aux_datums: list[tinker.Datum] = [
+        d
+        for tg in trajectory_groups_P
+        for t in tg.trajectories_G
+        for d in t.auxiliary_datums
+    ]
+    if cfg.auxiliary_sft_fn is not None:
+        aux_datums.extend(cfg.auxiliary_sft_fn(env_group_builders_P, trajectory_groups_P))
+    if aux_datums:
+        aux_lr = cfg.auxiliary_sft_learning_rate if cfg.auxiliary_sft_learning_rate is not None else cfg.learning_rate
+        with timed("auxiliary_sft", metrics):
+            await forward_backward(training_client, aux_datums, "cross_entropy")
+        await optim_step(training_client, aux_lr)
+        metrics["auxiliary_sft/num_datums"] = len(aux_datums)
+        metrics["auxiliary_sft/learning_rate"] = aux_lr
+        # Log auxiliary SFT datums for visibility
+        buf = io.StringIO()
+        print("\n====== Auxiliary SFT Datums ======", file=buf)
+        for i, datum in enumerate(aux_datums[:2]):  # Log first 2
+            print(f"---- addendum datum {i} ----", file=buf)
+            print(colorize_example(datum, tokenizer, key="weights"), file=buf)
+        print(f"====== {len(aux_datums)} total addendum datums, lr={aux_lr} ======", file=buf)
+        logger.info(buf.getvalue().rstrip())
+
     sampling_client, full_batch_metrics = await compute_full_batch_metrics_and_get_sampling_client(
         training_client,
         # NOTE: saving the checkpoint as the i + 1 step
@@ -976,7 +986,7 @@ async def do_sync_training(
         t_start = time.time()
 
         # Run evaluations
-        if cfg.eval_every > 0 and i_batch % cfg.eval_every == 0:
+        if cfg.eval_every > 0 and i_batch % cfg.eval_every == 0 and not (cfg.skip_initial_eval and i_batch == 0):
             with timed("run_evals", metrics):
                 eval_metrics = await run_evaluations_parallel(
                     evaluators, sampling_client, cfg, i_batch
@@ -989,7 +999,6 @@ async def do_sync_training(
         # Initialize logtree trace for this iteration if logging is enabled
         with _get_logtree_scope(
             log_path=cfg.log_path,
-            num_groups_to_log=cfg.num_groups_to_log,
             f_name=f"train_iteration_{i_batch:06d}",
             scope_name=f"RL Iteration {i_batch}",
         ):
@@ -1002,9 +1011,8 @@ async def do_sync_training(
                             max_tokens=cfg.max_tokens,
                             temperature=cfg.temperature,
                             do_remove_constant_reward_groups=cfg.remove_constant_reward_groups,
-                            enable_logging=i < cfg.num_groups_to_log,
+                            enable_logging=True,
                             tokenizer=tokenizer,
-                            num_rollouts_to_log=cfg.num_rollouts_to_log,
                         ),
                         name=f"sample_task_{i}",
                     )

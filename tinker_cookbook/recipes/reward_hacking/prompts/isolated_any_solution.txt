@@ -1,0 +1,1 @@
+Any solution that passes the grading script successfully is okay. 

@@ -1,0 +1,20 @@
+
+
+
+
+
+Experiments 2:
+
+Model: Qwen-3-30B-A3B-Instruct-2507
+Dataset size: 2000
+Average tokens per datum: 
+  User plain:
+  Assistant plain:
+  User soft bold:
+  Assistant soft bold:
+  ...
+Learning rate: 2e-5
+Epochs: 2
+Batch size:
+Learning rate schedule:
+Lora rank: 

@@ -37,7 +37,10 @@ class TokensWithLogprobs:
 
 class TokenCompleter:
     async def __call__(
-        self, model_input: tinker.ModelInput, stop: StopCondition
+        self,
+        model_input: tinker.ModelInput,
+        stop: StopCondition,
+        max_tokens: int | None = None,
     ) -> TokensWithLogprobs:
         raise NotImplementedError
 
@@ -63,9 +66,16 @@ class TinkerTokenCompleter(TokenCompleter):
     tokenizer: object = None  # Optional tokenizer for debugging (decoding prompts on errors)
 
     async def __call__(
-        self, model_input: tinker.ModelInput, stop: StopCondition
+        self,
+        model_input: tinker.ModelInput,
+        stop: StopCondition,
+        max_tokens: int | None = None,
     ) -> TokensWithLogprobs:
-        """Sample an action from the policy given an observation."""
+        """Sample an action from the policy given an observation.
+
+        If `max_tokens` is given, use it instead of the configured default.
+        """
+        effective_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
         # Sample from the model
         try:
             sample_result = await self.sampling_client.sample_async(
@@ -73,7 +83,7 @@ class TinkerTokenCompleter(TokenCompleter):
                 num_samples=1,
                 sampling_params=tinker.SamplingParams(
                     stop=stop,
-                    max_tokens=self.max_tokens,
+                    max_tokens=effective_max_tokens,
                     temperature=self.temperature,
                 ),
             )
@@ -89,7 +99,7 @@ class TinkerTokenCompleter(TokenCompleter):
                     f.write(f"Timestamp: {datetime.now().isoformat()}\n")
                     f.write(f"Error: {e}\n")
                     f.write(f"Prompt length: {len(prompt_tokens)} tokens\n")
-                    f.write(f"Max tokens requested: {self.max_tokens}\n")
+                    f.write(f"Max tokens requested: {effective_max_tokens}\n")
                     f.write(f"Stop condition: {stop}\n")
                     f.write(f"\n{'=' * 60}\n")
                     f.write(f"Prompt tokens:\n{prompt_tokens}\n")

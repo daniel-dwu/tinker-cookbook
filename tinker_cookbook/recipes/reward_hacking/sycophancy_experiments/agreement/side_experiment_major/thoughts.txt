@@ -1,0 +1,5 @@
+concerns: does it matter whether the original system prompt was on policy? Can we steer user behavior not with reward signal but with sft on user text?
+
+Current settings just test whether user training can inject certain preferences or facts using a narrow eval on-policy to the fine-tuning
+
+But can it also shape more general abilities in the same way that RL can?
